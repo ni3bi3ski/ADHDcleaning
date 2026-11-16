@@ -8,11 +8,22 @@ struct TaskRowView: View {
     let difficulty: TaskDifficulty
     let onToggle: () -> Void
 
-    var body: some View {
-        HStack(spacing: 14) {
+    private var difficultyColor: Color {
+        switch difficulty {
+        case .easy:   return .green
+        case .medium: return .orange
+        case .hard:   return .red
+        }
+    }
 
-            // Checkbox
-            Button(action: onToggle) {
+    var body: some View {
+        HStack(spacing: 10) {
+
+            // Checkbox (obszar dotyku 44x44)
+            Button {
+                Haptics.tap()
+                onToggle()
+            } label: {
                 ZStack {
                     Circle()
                         .fill(isDone ? Color.green : Color.clear)
@@ -27,27 +38,44 @@ struct TaskRowView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
+                            .symbolEffect(.bounce, value: isDone)
                     }
                 }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(isDone ? "Zrobione" : "Do zrobienia")
+            .accessibilityHint("Dwukrotnie stuknij, aby zmienić status zadania")
 
             // Ikona kategorii
             Image(systemName: category.icon)
                 .font(.caption)
-                .foregroundColor(category.swiftUIColor.opacity(0.8))  // FIX: .swiftUIColor
+                .foregroundColor(category.swiftUIColor)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(category.swiftUIColor.opacity(0.15))
+                )
+                .accessibilityHidden(true)
 
-            // Tytuł + trudność
-            VStack(alignment: .leading, spacing: 2) {
+            // Tytuł + trudność + kategoria
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.body)
                     .fontWeight(isDone ? .regular : .semibold)
                     .strikethrough(isDone, color: .secondary)
                     .foregroundStyle(isDone ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
                     .lineLimit(2)
-                Text("\(difficulty.icon) \(difficulty.rawValue)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 4) {
+                    Text("\(difficulty.icon) \(difficulty.rawValue)")
+                        .font(.caption2)
+                        .foregroundColor(difficultyColor.opacity(isDone ? 0.5 : 0.9))
+                    Text("· \(category.rawValue)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             Spacer()
@@ -69,14 +97,17 @@ struct TaskRowView: View {
                                 )
                             )
                     )
+                    .accessibilityLabel("\(exp) punktów doświadczenia")
             } else {
                 Image(systemName: "checkmark.seal.fill")
                     .foregroundColor(.green.opacity(0.4))
                     .font(.caption)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.leading, 6)
+        .padding(.trailing, 16)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(isDone ? Color.green.opacity(0.05) : Color(.systemBackground))
@@ -92,6 +123,7 @@ struct TaskRowView: View {
                     lineWidth: 1
                 )
         )
+        .opacity(isDone ? 0.8 : 1)
         .animation(.easeInOut(duration: 0.2), value: isDone)
     }
 }

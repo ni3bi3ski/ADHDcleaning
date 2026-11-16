@@ -31,8 +31,25 @@ struct HeaderCardView: View {
         }
     }
 
+    /// Ile XP brakuje do kolejnego poziomu (xpForNextLevel to koszt bieżącego poziomu).
     private var xpRemaining: Int {
-        isMasterLevel ? 0 : max(0, xpForNextLevel - (experience % max(xpForNextLevel, 1)))
+        guard !isMasterLevel else { return 0 }
+        return max(0, Int((1.0 - levelProgress) * Double(xpForNextLevel)))
+    }
+
+    /// Seria liczona jest w tygodniach.
+    private var streakText: String {
+        let last = streak % 10
+        let lastTwo = streak % 100
+        let word: String
+        if streak == 1 {
+            word = "tydzień"
+        } else if (2...4).contains(last) && !(12...14).contains(lastTwo) {
+            word = "tygodnie"
+        } else {
+            word = "tygodni"
+        }
+        return "Seria \(streak) \(word) z rzędu"
     }
 
     var body: some View {
@@ -58,6 +75,7 @@ struct HeaderCardView: View {
                     .offset(x: 20, y: 90)
             }
             .clipped()
+            .accessibilityHidden(true)
 
             // — Treść
             VStack(alignment: .leading, spacing: 16) {
@@ -127,7 +145,7 @@ struct HeaderCardView: View {
                     Text("🔥")
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Seria \(streak) \(streak == 1 ? "dzień" : "dni") z rzędu")
+                        Text(streakText)
                             .font(.subheadline).bold()
                             .foregroundColor(.white)
                         if streak >= 7 {
@@ -139,7 +157,7 @@ struct HeaderCardView: View {
                                 .font(.caption2)
                                 .foregroundColor(.white.opacity(0.75))
                         } else if streak == 0 {
-                            Text("Zacznij dzisiaj — pierwszy krok!")
+                            Text("Zacznij w tym tygodniu — pierwszy krok!")
                                 .font(.caption2)
                                 .foregroundColor(.white.opacity(0.75))
                         }
@@ -185,6 +203,9 @@ struct HeaderCardView: View {
                         }
                     }
                     .frame(height: 10)
+                    .accessibilityElement()
+                    .accessibilityLabel("Postęp poziomu")
+                    .accessibilityValue(isMasterLevel ? "100 procent" : "\(Int(levelProgress * 100)) procent")
 
                     HStack {
                         Text(isMasterLevel ? "Poziom MAX 🎉" : "Postęp do poziomu \(level + 1)")
@@ -206,7 +227,7 @@ struct HeaderCardView: View {
                 animatedProgress = isMasterLevel ? 1.0 : levelProgress
             }
         }
-        .onChange(of: levelProgress) { val in
+        .onChange(of: levelProgress) { _, val in
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
                 animatedProgress = isMasterLevel ? 1.0 : val
             }
