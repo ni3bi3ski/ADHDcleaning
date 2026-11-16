@@ -72,7 +72,12 @@ struct SettingsView: View {
                 }
 
                 // MARK: - Dane
-                Section("Dane") {
+                Section("Dane i zadania") {
+                    NavigationLink {
+                        RoomTemplatesView(vm: vm)
+                    } label: {
+                        Label("Szablony zadań", systemImage: "checklist")
+                    }
                     NavigationLink {
                         BackupScreen(vm: vm)
                     } label: {
