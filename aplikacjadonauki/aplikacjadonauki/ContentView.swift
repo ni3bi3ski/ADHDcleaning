@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var vm       = AppViewModel()
-    @StateObject private var settings = SettingsStore()
+    @ObservedObject private var settings = SettingsStore.shared
     @State private var selectedTab    = 0
 
     var body: some View {
