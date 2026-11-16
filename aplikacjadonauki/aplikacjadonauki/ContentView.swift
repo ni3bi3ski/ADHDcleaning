@@ -43,6 +43,11 @@ private struct HomeTab: View {
         settings.colorFor(settings.accentColorName)
     }
 
+    /// XP zdobyte na bieżącym poziomie (z paska postępu).
+    private var xpInLevel: Int {
+        Int((vm.levelProgress * Double(vm.xpForNextLevel)).rounded())
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
@@ -162,12 +167,15 @@ private struct HomeTab: View {
                                 }
                             }
                             .frame(height: 8)
+                            .accessibilityElement()
+                            .accessibilityLabel("Postęp poziomu")
+                            .accessibilityValue("\(Int(vm.levelProgress * 100)) procent")
 
                             HStack {
-                                Text("\(vm.experience) XP")
+                                Text(vm.isMasterLevel ? "Poziom MAX" : "\(xpInLevel) / \(vm.xpForNextLevel) XP")
                                     .font(.caption2).foregroundStyle(.secondary)
                                 Spacer()
-                                Text("\(vm.xpForNextLevel) XP")
+                                Text("Razem \(vm.experience) XP")
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
@@ -281,8 +289,10 @@ private struct HomeTab: View {
                 VStack(spacing: 4) {
                     Text(stat.0).font(.title3)
                     Text(stat.1)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.caption2.bold())
                         .foregroundColor(stat.2)
+                        .minimumScaleFactor(0.8)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
