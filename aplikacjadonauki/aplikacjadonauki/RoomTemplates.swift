@@ -43,7 +43,7 @@ extension RoomTemplate {
         RoomTemplate(id: "morning", name: "Poranna rutyna", icon: "☀️", tasks: [
             TemplateTask(title: "Wypij szklankę wody",    category: .health,   difficulty: .easy, frequency: .daily),
             TemplateTask(title: "Weź leki lub suplementy", category: .health,   difficulty: .easy, frequency: .daily),
-            TemplateTask(title: "Prysznic i pielegnacja", category: .selfcare, difficulty: .easy, frequency: .daily),
+            TemplateTask(title: "Prysznic i pielęgnacja", category: .selfcare, difficulty: .easy, frequency: .daily),
             TemplateTask(title: "5 minut planowania dnia", category: .focus,   difficulty: .easy, frequency: .daily)
         ])
     ]
