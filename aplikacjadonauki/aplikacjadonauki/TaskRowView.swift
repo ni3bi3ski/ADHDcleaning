@@ -30,7 +30,7 @@ struct TaskRowView: View {
                         .frame(width: 28, height: 28)
                     Circle()
                         .strokeBorder(
-                            isDone ? Color.green : Color.gray.opacity(0.4),
+                            isDone ? Color.green : Color.gray.opacity(0.5),
                             lineWidth: 2
                         )
                         .frame(width: 28, height: 28)
@@ -66,15 +66,15 @@ struct TaskRowView: View {
                     .font(.body)
                     .fontWeight(isDone ? .regular : .semibold)
                     .strikethrough(isDone, color: .secondary)
-                    .foregroundStyle(isDone ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+                    .foregroundStyle(isDone ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                     .lineLimit(2)
                 HStack(spacing: 4) {
                     Text("\(difficulty.icon) \(difficulty.rawValue)")
                         .font(.caption2)
-                        .foregroundColor(difficultyColor.opacity(isDone ? 0.5 : 0.9))
+                        .foregroundColor(difficultyColor.opacity(isDone ? 0.6 : 0.95))
                     Text("· \(category.rawValue)")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -100,7 +100,7 @@ struct TaskRowView: View {
                     .accessibilityLabel("\(exp) punktów doświadczenia")
             } else {
                 Image(systemName: "checkmark.seal.fill")
-                    .foregroundColor(.green.opacity(0.4))
+                    .foregroundColor(.green.opacity(0.5))
                     .font(.caption)
                     .accessibilityHidden(true)
             }
@@ -109,21 +109,17 @@ struct TaskRowView: View {
         .padding(.trailing, 16)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(isDone ? Color.green.opacity(0.05) : Color(.systemBackground))
-                .shadow(
-                    color: isDone ? .clear : Color.black.opacity(0.06),
-                    radius: 6, x: 0, y: 2
-                )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(isDone ? Color.green.opacity(0.07) : Color(.secondarySystemGroupedBackground))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
-                    isDone ? Color.green.opacity(0.15) : Color.gray.opacity(0.1),
+                    isDone ? Color.green.opacity(0.2) : Color.primary.opacity(0.06),
                     lineWidth: 1
                 )
         )
-        .opacity(isDone ? 0.8 : 1)
+        .opacity(isDone ? 0.85 : 1)
         .animation(.easeInOut(duration: 0.2), value: isDone)
     }
 }

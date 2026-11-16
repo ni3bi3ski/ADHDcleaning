@@ -65,16 +65,7 @@ struct DailyProgressRing: View {
             }
             Spacer()
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(.systemBackground))
-                .shadow(color: accent.opacity(0.10), radius: 8, x: 0, y: 3)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(accent.opacity(0.15), lineWidth: 1)
-        )
+        .appCard(tint: accent)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Dzisiejszy postęp")
         .accessibilityValue("\(done) z \(total) zadań dziennych")
