@@ -5,8 +5,13 @@ import UserNotifications
 @MainActor
 final class AppViewModel: ObservableObject {
 
-    // MARK: - Cloud Sync
+    // MARK: - Local backup (bez chmury i bez serwera)
     private let cloudSync = CloudSyncManager()
+
+    // MARK: - Reward ledger (dokładne cofanie nagród po odznaczeniu zadania)
+    private var rewardLedger: [String: [Int]] = UserDefaults.standard.dictionary(forKey: "rewardLedger") as? [String: [Int]] ?? [:] {
+        didSet { UserDefaults.standard.set(rewardLedger, forKey: "rewardLedger") }
+    }
 
     // MARK: - Published state
     @Published var tasks: [CleaningTask] = [] {
@@ -23,12 +28,13 @@ final class AppViewModel: ObservableObject {
     }
     @Published var playerHP: Int = 100 {
         didSet {
-            UserDefaults.standard.set(playerHP, forKey: "playerHP")
             if playerHP <= 0 {
-                playerHP = 100
+                // Feniks odradza postać z 50 HP, inaczej 100 HP
+                playerHP = profile.pets.contains { $0.name.contains("Feniks") } ? 50 : 100
                 streak = 0
                 gold = max(0, gold - 50)
             }
+            UserDefaults.standard.set(playerHP, forKey: "playerHP")
         }
     }
     @Published var dailyStats: [DailyStats] = [] {
@@ -151,8 +157,8 @@ final class AppViewModel: ObservableObject {
         experience  = UserDefaults.standard.integer(forKey: "experience")
         streak      = UserDefaults.standard.integer(forKey: "streak")
         gold        = UserDefaults.standard.integer(forKey: "gold")
-        playerHP    = UserDefaults.standard.integer(forKey: "playerHP")
-        if playerHP == 0 { playerHP = 100 }
+        let storedHP = UserDefaults.standard.object(forKey: "playerHP") as? Int ?? 100
+        playerHP    = storedHP > 0 ? storedHP : 100
         lastResetDate  = UserDefaults.standard.object(forKey: "lastResetDate")  as? Date ?? Date()
         lastDailyReset = UserDefaults.standard.object(forKey: "lastDailyReset") as? Date ?? Date()
         loadDailyStats()
@@ -178,6 +184,8 @@ final class AppViewModel: ObservableObject {
         if !wasAlreadyDone {
             tasks[idx].lastCompleted = Date()
             let oldLevel = level
+            let expBefore  = experience
+            let goldBefore = gold
 
             let baseExp  = tasks[idx].exp
             let baseGold = tasks[idx].gold
@@ -198,6 +206,11 @@ final class AppViewModel: ObservableObject {
 
             if hasTurboClean  { finalExp  = Int(Double(finalExp)  * 1.5) }
             if hasGoldRush    { finalGold = Int(Double(finalGold) * 1.5) }
+
+            // Złoty Mop (+25% XP) działa, gdy jest założony w ekwipunku
+            if equippedItems.contains(where: { $0.name == "Złoty Mop" }) {
+                finalExp = Int(Double(finalExp) * 1.25)
+            }
 
             if hasLuckyStrike && Double.random(in: 0...1) < 0.10 {
                 finalExp *= 3
@@ -220,6 +233,9 @@ final class AppViewModel: ObservableObject {
             if dex  > 5 { experience += finalExp / 4 }
             if int_ > 5 { experience += finalExp / 4 }
 
+            // Zapisz dokładnie przyznaną nagrodę, żeby odznaczenie mogło ją cofnąć
+            rewardLedger[tasks[idx].id.uuidString] = [experience - expBefore, gold - goldBefore]
+
             recordDailyStat(exp: finalExp)
             updateProfile(for: tasks[idx])
             updateChallenge(for: tasks[idx])
@@ -238,10 +254,24 @@ final class AppViewModel: ObservableObject {
 
             checkAchievements()
         } else {
+            let wasRecent = tasks[idx].lastCompleted
+                .map { Date().timeIntervalSince($0) < 60 } ?? false
+            let key = tasks[idx].id.uuidString
             tasks[idx].lastCompleted = nil
-            experience = max(0, experience - tasks[idx].exp / 2)
-            gold       = max(0, gold       - tasks[idx].gold / 2)
-            if !profile.hasSkipPenalty { playerHP -= 2 }
+
+            if let reward = rewardLedger[key], reward.count == 2 {
+                experience = max(0, experience - reward[0])
+                gold       = max(0, gold       - reward[1])
+                rewardLedger.removeValue(forKey: key)
+                profile.totalTasksCompleted = max(0, profile.totalTasksCompleted - 1)
+                profile.totalGoldEarned     = max(0, profile.totalGoldEarned - tasks[idx].gold)
+            } else {
+                experience = max(0, experience - tasks[idx].exp / 2)
+                gold       = max(0, gold       - tasks[idx].gold / 2)
+            }
+
+            // Pomyłka w ciągu minuty nie kosztuje HP
+            if !wasRecent && !profile.hasSkipPenalty { playerHP -= 2 }
             updateComboState()
         }
 
@@ -349,7 +379,9 @@ final class AppViewModel: ObservableObject {
         focusTimerActive = false
 
         if duration >= 600 {
-            let timerXP = hasFocusMaster ? 30 : 20
+            var timerXP = hasFocusMaster ? 30 : 20
+            // Zegar Fokusa: +10 XP z każdej sesji
+            if profile.inventory.contains(where: { $0.name == "Zegar Fokusa" }) { timerXP += 10 }
             experience += timerXP
             checkAchievements()
         }
@@ -395,7 +427,7 @@ final class AppViewModel: ObservableObject {
         let available = recipe.ingredients.allSatisfy { id in
             shopItems.contains { $0.id.uuidString == id && $0.isPurchased }
         }
-        guard available else { return false }
+        guard available, gold >= recipe.resultCost else { return false }
         gold -= recipe.resultCost
         checkAchievements()
         saveToCloud()
@@ -603,45 +635,57 @@ final class AppViewModel: ObservableObject {
     func buyItem(_ item: ShopItem) {
         guard gold >= item.cost,
               let idx = shopItems.firstIndex(where: { $0.id == item.id }) else { return }
+
+        // Pety, skille, przedmioty i ubrania kupuje się tylko raz
+        let permanent: [ShopCategory] = [.pet, .skill, .item, .avatar]
+        if shopItems[idx].isPurchased && permanent.contains(item.category) && !item.isCustom { return }
+
         gold -= item.cost
         shopItems[idx].isPurchased = true
 
-        // Pety
-        if item.title.contains("Kot")    { buyPet("Kot Sprzątacz",    icon: "🐱") }
-        if item.title.contains("Pies")   { buyPet("Pies Porządkowy",  icon: "🐶") }
-        if item.title.contains("Sowa")   { buyPet("Sowa Mądrości",    icon: "🦉") }
-        if item.title.contains("Smok")   { buyPet("Smok Motywacji",   icon: "🐉") }
-        if item.title.contains("Feniks") { buyPet("Feniks Odrodzenia",icon: "🦅") }
+        // Własne nagrody użytkownika nie uruchamiają żadnych efektów
+        if !item.isCustom {
+            switch item.category {
+            case .pet:
+                if item.title.contains("Kot")    { buyPet("Kot Sprzątacz",    icon: "🐱") }
+                if item.title.contains("Pies")   { buyPet("Pies Porządkowy",  icon: "🐶") }
+                if item.title.contains("Sowa")   { buyPet("Sowa Mądrości",    icon: "🦉") }
+                if item.title.contains("Smok")   { buyPet("Smok Motywacji",   icon: "🐉") }
+                if item.title.contains("Feniks") { buyPet("Feniks Odrodzenia",icon: "🦅") }
 
-        // Skille
-        if item.title.contains("TurboClean")  { unlockSkill("TurboClean") }
-        if item.title.contains("GoldRush")    { unlockSkill("GoldRush") }
-        if item.title.contains("FocusMaster") { unlockSkill("FocusMaster") }
-        if item.title.contains("IronWill")    { unlockSkill("IronWill") }
-        if item.title.contains("LuckyStrike") { unlockSkill("LuckyStrike") }
+            case .skill:
+                if item.title.contains("TurboClean")  { unlockSkill("TurboClean") }
+                if item.title.contains("GoldRush")    { unlockSkill("GoldRush") }
+                if item.title.contains("FocusMaster") { unlockSkill("FocusMaster") }
+                if item.title.contains("IronWill")    { unlockSkill("IronWill") }
+                if item.title.contains("LuckyStrike") { unlockSkill("LuckyStrike") }
 
-        // Eliksiry
-        if item.title.contains("Potion HP")      { playerHP = min(100, playerHP + 30) }
-        if item.title.contains("HP Max")         { playerHP = 100 }
-        if item.title.contains("Eliksir Streak") { streak += 1 }
-        if item.title.contains("XP x2")          { profile.activeBoosts["doubleXP"]  = Date().addingTimeInterval(86400) }
-        if item.title.contains("Złoty Eliksir")  { profile.activeBoosts["goldBoost"] = Date().addingTimeInterval(86400) }
+            case .potion:
+                if item.title.contains("Potion HP")      { playerHP = min(100, playerHP + 30) }
+                if item.title.contains("HP Max")         { playerHP = 100 }
+                if item.title.contains("Eliksir Streak") { streak += 1 }
+                if item.title.contains("XP x2")          { profile.activeBoosts["doubleXP"]  = Date().addingTimeInterval(86400) }
+                if item.title.contains("Złoty Eliksir")  { profile.activeBoosts["goldBoost"] = Date().addingTimeInterval(86400) }
 
-        // Przedmioty
-        if item.title.contains("Złoty Mop") {
-            profile.inventory.append(InventoryItem(name: "Złoty Mop",       icon: "sparkles",     description: "+25% XP bonus"))
-        }
-        if item.title.contains("Plecak") {
-            profile.inventory.append(InventoryItem(name: "Plecak Bohatera", icon: "backpack.fill", description: "+1 slot ekwipunku"))
-        }
-        if item.title.contains("Zegar") {
-            profile.inventory.append(InventoryItem(name: "Zegar Fokusa",    icon: "timer",         description: "+10 XP z każdej sesji"))
-        }
+            case .item:
+                if item.title.contains("Złoty Mop") {
+                    profile.inventory.append(InventoryItem(name: "Złoty Mop",       icon: "sparkles",     description: "+25% XP bonus"))
+                }
+                if item.title.contains("Plecak") {
+                    profile.inventory.append(InventoryItem(name: "Plecak Bohatera", icon: "backpack.fill", description: "+1 slot ekwipunku"))
+                }
+                if item.title.contains("Zegar") {
+                    profile.inventory.append(InventoryItem(name: "Zegar Fokusa",    icon: "timer",         description: "+10 XP z każdej sesji"))
+                }
 
-        // Ubrania awatara — automatyczne wyposażenie po zakupie
-        if item.category == .avatar {
-            if let avatarItem = AvatarItem.allItems.first(where: { $0.shopItemId == item.id }) {
-                equipAvatar(item: avatarItem)
+            case .avatar:
+                // Ubrania awatara — automatyczne wyposażenie po zakupie
+                if let avatarItem = AvatarItem.allItems.first(where: { $0.shopItemId == item.id }) {
+                    equipAvatar(item: avatarItem)
+                }
+
+            case .reward:
+                break
             }
         }
 
@@ -752,6 +796,7 @@ final class AppViewModel: ObservableObject {
         if Date() >= nextMonday {
             archiveCurrentWeek()
             for idx in tasks.indices { tasks[idx].isDone = false }
+            rewardLedger = [:]
             updateStreak()
             lastResetDate = Date()
             refreshWeeklyChallenge()
@@ -816,40 +861,26 @@ final class AppViewModel: ObservableObject {
         focusTimerActive = false
         comboCount      = 0
         isInComboState  = false
+        rewardLedger    = [:]
         refreshWeeklyChallenge()
         saveToCloud()
     }
 
-    // MARK: - Cloud Sync
+    // MARK: - Lokalna kopia zapasowa
+    // Nazwy saveToCloud/loadFromCloud zostają dla zgodności z pozostałymi widokami.
+    // Aplikacja jest w pełni lokalna: UserDefaults to źródło prawdy, backup.json to kopia.
     func loadFromCloud() {
-        Task { @MainActor in
-            let remote = await cloudSync.load()
-            guard let remote else { saveToCloud(); startCloudListener(); return }
-            let local  = makePayload()
-            let merged = cloudSync.merge(local: local, remote: remote)
-            applyPayload(merged)
-            saveToCloud()
-            startCloudListener()
-        }
+        saveToCloud()
     }
 
-    func startCloudListener() {
-        cloudSync.startListening { [weak self] remote in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                let local  = self.makePayload()
-                let merged = self.cloudSync.merge(local: local, remote: remote)
-                self.applyPayload(merged)
-            }
-        }
-    }
+    func startCloudListener() {}
 
     func saveToCloud() { cloudSync.save(makePayload()) }
 
     // Alias dla zgodności z AvatarDressingRoomView
     func saveData() { saveToCloud() }
 
-    private func makePayload() -> SyncPayload {
+    func makePayload() -> SyncPayload {
         SyncPayload(
             tasks: tasks, experience: experience, streak: streak,
             gold: gold, playerHP: playerHP, lastResetDate: lastResetDate,
@@ -859,7 +890,7 @@ final class AppViewModel: ObservableObject {
         )
     }
 
-    private func applyPayload(_ p: SyncPayload) {
+    func applyPayload(_ p: SyncPayload) {
         tasks          = p.tasks
         experience     = p.experience
         streak         = p.streak
@@ -873,6 +904,7 @@ final class AppViewModel: ObservableObject {
         shopItems      = p.shopItems
         profile        = p.profile
         weeklyChallenge = p.weeklyChallenge
+        rewardLedger   = [:]
     }
 
     // MARK: - Powiadomienia
