@@ -1,43 +1,37 @@
 import Foundation
-import FirebaseFirestore
 
+/// Lokalny zapis kopii zapasowej. Brak sieci, brak kont, brak serwera.
+/// Źródłem prawdy pozostaje UserDefaults (AppViewModel); ten plik to dodatkowy backup JSON
+/// w Application Support oraz logika merge do importu.
 class CloudSyncManager {
-    private let db = Firestore.firestore()
-    private let docID = "shared_save"
-    private var listener: ListenerRegistration?
+    private let queue = DispatchQueue(label: "local.backup", qos: .utility)
+
+    private var fileURL: URL? {
+        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("backup.json")
+    }
 
     func save(_ payload: SyncPayload) {
-        guard let data = try? JSONEncoder().encode(payload),
-              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return }
-        db.collection("sync").document(docID).setData(dict) { error in
-            if let error = error { print("❌ Firebase save failed: \(error)") }
-            else { print("✅ Firebase save OK") }
+        guard let url = fileURL else { return }
+        queue.async {
+            do {
+                let data = try JSONEncoder().encode(payload)
+                try data.write(to: url, options: .atomic)
+            } catch {
+                print("Local backup failed: \(error)")
+            }
         }
     }
 
     func load() async -> SyncPayload? {
-        guard let snapshot = try? await db.collection("sync").document(docID).getDocument(),
-              let data = snapshot.data(),
-              let jsonData = try? JSONSerialization.data(withJSONObject: data)
-        else { return nil }
-        return try? JSONDecoder().decode(SyncPayload.self, from: jsonData)
+        guard let url = fileURL,
+              let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(SyncPayload.self, from: data)
     }
 
-    func startListening(onChange: @escaping (SyncPayload) -> Void) {
-        listener = db.collection("sync").document(docID).addSnapshotListener { snapshot, error in
-            guard let data = snapshot?.data(),
-                  let jsonData = try? JSONSerialization.data(withJSONObject: data),
-                  let payload = try? JSONDecoder().decode(SyncPayload.self, from: jsonData)
-            else { return }
-            onChange(payload)
-        }
-    }
-
-    func stopListening() {
-        listener?.remove()
-        listener = nil
-    }
+    func startListening(onChange: @escaping (SyncPayload) -> Void) {}
+    func stopListening() {}
 
     func merge(local: SyncPayload, remote: SyncPayload) -> SyncPayload {
         SyncPayload(
@@ -85,9 +79,7 @@ class CloudSyncManager {
 
     private func mergeStats(local: [PlayerStat: Int], remote: [PlayerStat: Int]) -> [PlayerStat: Int] {
         PlayerStat.allCases.reduce(into: local) { merged, stat in
-            let l = local[stat, default: 1]
-            let r = remote[stat, default: 1]
-            merged[stat] = max(l, r)
+            merged[stat] = max(local[stat, default: 1], remote[stat, default: 1])
         }
     }
 
