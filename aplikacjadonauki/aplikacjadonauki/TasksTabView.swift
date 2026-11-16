@@ -16,6 +16,7 @@ struct TasksTabView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     bannersSection
+                    progressSection
                     wheelSection
                     chaosModeSection
                     filterSection
@@ -43,7 +44,27 @@ struct TasksTabView: View {
             .onAppear {
                 vm.checkDailyReset()
             }
+            .overlay {
+                if vm.showLevelUpBanner {
+                    ConfettiView()
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                }
+            }
+            .onChange(of: vm.showLevelUpBanner) { _, isShown in
+                if isShown { Haptics.success() }
+            }
         }
+    }
+
+    // MARK: - Dzisiejszy postęp
+    private var progressSection: some View {
+        let daily = vm.tasks.filter { $0.frequency == .daily }
+        return DailyProgressRing(
+            done: daily.filter { $0.isDone }.count,
+            total: daily.count
+        )
+        .padding(.horizontal)
     }
 
     // MARK: - Bannery
