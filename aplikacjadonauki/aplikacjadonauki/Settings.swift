@@ -49,8 +49,8 @@ struct SettingsView: View {
                     }
                 }
 
-                // MARK: - Konto
-                Section("Konto") {
+                // MARK: - Profil
+                Section("Profil") {
                     HStack {
                         Label("Gracz", systemImage: "person.fill")
                         Spacer()
@@ -68,6 +68,20 @@ struct SettingsView: View {
                         Spacer()
                         Text("\(vm.gold) 🪙")
                             .foregroundStyle(.secondary)
+                    }
+                }
+
+                // MARK: - Dane
+                Section("Dane i zadania") {
+                    NavigationLink {
+                        RoomTemplatesView(vm: vm)
+                    } label: {
+                        Label("Szablony zadań", systemImage: "checklist")
+                    }
+                    NavigationLink {
+                        BackupScreen(vm: vm)
+                    } label: {
+                        Label("Kopia zapasowa i tryb choroby", systemImage: "externaldrive.fill")
                     }
                 }
 
@@ -91,7 +105,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Strefa niebezpieczna")
                 } footer: {
-                    Text("Ta operacja jest nieodwracalna. Wszystkie zadania, XP i gold zostaną usunięte.")
+                    Text("Ta operacja jest nieodwracalna. Wszystkie zadania, XP, gold, osiągnięcia i profil zostaną usunięte.")
                 }
             }
             .navigationTitle("Ustawienia")
@@ -108,14 +122,7 @@ struct SettingsView: View {
                 titleVisibility: .visible
             ) {
                 Button("Resetuj", role: .destructive) {
-                    vm.experience = 0
-                    vm.gold = 0
-                    vm.streak = 0
-                    vm.tasks = vm.tasks.map {
-                        var t = $0
-                        t.isDone = false
-                        return t
-                    }
+                    vm.resetAll()
                     dismiss()
                 }
                 Button("Anuluj", role: .cancel) {}

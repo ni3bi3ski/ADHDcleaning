@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct StatsTabView: View {
     @ObservedObject var vm: AppViewModel
@@ -6,7 +7,7 @@ struct StatsTabView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     HeaderCardView(
                         level: vm.level,
                         streak: vm.streak,
@@ -15,19 +16,21 @@ struct StatsTabView: View {
                         xpForNextLevel: vm.xpForNextLevel,
                         onShowStats: {}
                     )
-                    .padding(.horizontal)
 
                     if vm.profile.pointsToAllocate > 0 {
                         allocateSection
                     }
 
-                    statsGrid
+                    attributesSection
                     classSection
                     skillsSection
-                    weeklyHistorySection
-                    focusSessionsSection
+                    weeklySection
+                    focusSection
                 }
+                .frame(maxWidth: 640)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Statystyki")
@@ -35,220 +38,235 @@ struct StatsTabView: View {
         }
     }
 
-    // MARK: - Alokacja punktów
+    // MARK: - Punkty do rozdania
     private var allocateSection: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "plus.circle.fill").foregroundColor(.yellow)
-                Text("\(vm.profile.pointsToAllocate) punkt(y) do rozdania!")
-                    .font(.headline).bold()
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(
+                title: "Punkty do rozdania",
+                systemImage: "plus.circle.fill",
+                trailing: "\(vm.profile.pointsToAllocate)"
+            )
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible()), count: 3),
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
                 spacing: 10
             ) {
                 ForEach(PlayerStat.allCases, id: \.self) { stat in
-                    Button { vm.allocatePoint(to: stat) } label: {
-                        VStack(spacing: 4) {
-                            Text(stat.icon).font(.title2)
+                    Button {
+                        Haptics.tap()
+                        vm.allocatePoint(to: stat)
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: stat.sfSymbol)
+                                .font(.title3)
+                                .foregroundStyle(stat.tintColor)
                             Text(stat.rawValue)
-                                .font(.caption2).bold()
+                                .font(.caption.bold())
                                 .multilineTextAlignment(.center)
-                            Text("+1").font(.caption2).foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.8)
+                            Text("+1")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
-                        .overlay(RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.blue.opacity(0.3), lineWidth: 1))
+                        .frame(maxWidth: .infinity, minHeight: 78)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(stat.tintColor.opacity(0.12))
+                        )
                     }
                     .buttonStyle(.plain)
                     .disabled(vm.profile.pointsToAllocate == 0)
                 }
             }
         }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.yellow.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 16)
-            .strokeBorder(Color.yellow.opacity(0.3), lineWidth: 1))
-        .padding(.horizontal)
+        .appCard(tint: .yellow)
     }
 
-    // MARK: - Stats Grid
-    private var statsGrid: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Atrybuty").font(.headline).bold()
-                .padding(.horizontal)
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible()), count: 2),
-                spacing: 12
-            ) {
-                ForEach(PlayerStat.allCases, id: \.self) { stat in
-                    let value = vm.profile.stats[stat] ?? 1
-                    VStack(spacing: 6) {
-                        Text(stat.icon).font(.largeTitle)
-                        Text(stat.rawValue).font(.subheadline).bold()
+    // MARK: - Atrybuty
+    private var attributesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(title: "Atrybuty", systemImage: "chart.bar.fill")
+            ForEach(PlayerStat.allCases, id: \.self) { stat in
+                let value = vm.profile.stats[stat] ?? 1
+                HStack(spacing: 12) {
+                    Image(systemName: stat.sfSymbol)
+                        .font(.title3)
+                        .foregroundStyle(stat.tintColor)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(stat.tintColor.opacity(0.14)))
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(stat.rawValue).font(.subheadline.bold())
+                            Spacer()
+                            Text("\(value)").font(.headline.monospacedDigit())
+                        }
+                        ProgressView(value: Double(min(value, 10)), total: 10)
+                            .tint(stat.tintColor)
                         Text(stat.description)
-                            .font(.caption2).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Text("\(value)")
-                            .font(.title2).bold().foregroundStyle(.tint)
-                        ProgressView(value: Double(min(value, 10)), total: 10).tint(.blue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
-                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
+                .accessibilityElement(children: .combine)
             }
-            .padding(.horizontal)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appCard()
     }
 
-    // MARK: - Class
+    // MARK: - Klasa
     private var classSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Klasa").font(.headline).bold()
+            SectionHeader(title: "Klasa", systemImage: "shield.lefthalf.filled")
             ForEach(PlayerClass.allCases, id: \.self) { cls in
                 let isSelected = vm.profile.playerClass == cls
-                Button { vm.profile.playerClass = cls } label: {
+                Button {
+                    Haptics.tap()
+                    vm.profile.playerClass = cls
+                } label: {
                     HStack(spacing: 12) {
-                        Text(cls.icon).font(.title3)
+                        Text(cls.icon).font(.title2)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(cls.rawValue).font(.subheadline).bold()
-                            Text(cls.description).font(.caption2).foregroundStyle(.secondary)
+                            Text(cls.rawValue).font(.subheadline.bold())
+                            Text(cls.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.blue)
-                        }
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.5))
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .padding(12)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(isSelected ? Color.blue.opacity(0.1) : Color(.systemFill))
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(isSelected ? Color.accentColor.opacity(0.12) : Color(.systemFill))
                     )
-                    .overlay(RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(isSelected ? Color.blue.opacity(0.4) : Color.clear, lineWidth: 1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1)
+                    )
                 }
                 .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-        .padding(.horizontal)
+        .appCard()
     }
 
-    // MARK: - Skills
+    // MARK: - Umiejętności
     private var skillsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Odblokowane skille").font(.headline).bold()
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(
+                title: "Umiejętności",
+                systemImage: "bolt.circle.fill",
+                trailing: "\(vm.profile.skills.count)"
+            )
             if vm.profile.skills.isEmpty {
-                Text("Kup skille w Sklepie! ⚡")
-                    .foregroundStyle(.secondary).font(.subheadline)
+                Text("Kup umiejętności w Sklepie, żeby zdobywać więcej XP i złota.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             } else {
-                ForEach(Array(vm.profile.skills).sorted(), id: \.self) { skill in
-                    HStack {
-                        Image(systemName: "bolt.circle.fill").foregroundColor(.yellow)
-                        Text(skill).font(.subheadline)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], spacing: 8) {
+                    ForEach(Array(vm.profile.skills).sorted(), id: \.self) { skill in
+                        StatusChip(text: skill, icon: "bolt.fill", color: .yellow)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-        .padding(.horizontal)
+        .appCard()
     }
 
-    // MARK: - Weekly History
-    private var weeklyHistorySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Historia tygodni").font(.headline).bold()
+    // MARK: - Historia tygodni
+    private var weeklySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Historia tygodni", systemImage: "calendar")
             if vm.weekHistory.isEmpty {
-                Text("Brak historii — graj dalej! 🚀")
-                    .foregroundStyle(.secondary).font(.subheadline)
+                Text("Brak historii. Pierwszy wpis pojawi się po zakończeniu tygodnia.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             } else {
+                let recent = Array(vm.weekHistory.prefix(8).reversed())
+                Chart(recent) { week in
+                    BarMark(
+                        x: .value("Tydzień", "T\(week.weekNumber)"),
+                        y: .value("Zadania", week.tasksCompleted)
+                    )
+                    .foregroundStyle(Color.accentColor.gradient)
+                    .cornerRadius(4)
+                }
+                .frame(height: 140)
+
                 ForEach(vm.weekHistory.prefix(5)) { week in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Tydzień \(week.weekNumber)")
-                                .font(.subheadline).bold()
+                                .font(.subheadline.bold())
                             Text(week.startDate.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("\(week.tasksCompleted) zadań")
-                                .font(.subheadline).bold()
+                                .font(.subheadline.bold())
                             Text("+\(week.expEarned) XP")
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .padding(.vertical, 4)
                     Divider()
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-        .padding(.horizontal)
+        .appCard()
     }
 
-    // MARK: - Focus Sessions
-    private var focusSessionsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    // MARK: - Focus Timer
+    private var focusSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Focus Timer", systemImage: "timer")
+
             HStack {
-                Text("Focus Timer").font(.headline).bold()
+                Text(formatDuration(vm.focusTimerActive ? vm.focusTimeElapsed : 0))
+                    .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(vm.focusTimerActive ? Color.teal : Color.primary)
                 Spacer()
                 Button {
+                    Haptics.tap()
                     vm.focusTimerActive ? vm.stopFocusTimer() : vm.startFocusTimer()
                 } label: {
                     Label(
                         vm.focusTimerActive ? "Stop" : "Start",
                         systemImage: vm.focusTimerActive ? "stop.fill" : "play.fill"
                     )
-                    .font(.subheadline).bold()
-                    .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(Capsule().fill(vm.focusTimerActive
-                                               ? Color.red.opacity(0.12)
-                                               : Color.teal.opacity(0.12)))
-                    .foregroundColor(vm.focusTimerActive ? .red : .teal)
+                    .font(.headline)
+                    .padding(.horizontal, 20).padding(.vertical, 12)
+                    .foregroundColor(.white)
+                    .background(Capsule().fill(vm.focusTimerActive ? Color.red : Color.teal))
                 }
                 .buttonStyle(.plain)
             }
 
-            if vm.focusTimerActive {
-                HStack {
-                    Image(systemName: "timer").foregroundColor(.teal)
-                    Text(formatDuration(vm.focusTimeElapsed))
-                        .font(.title2).bold().monospacedDigit()
-                        .foregroundColor(.teal)
-                    Spacer()
-                    Text("Fokusuj się! 🧠").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-
-            if !vm.profile.focusSessions.isEmpty {
-                Text("\(vm.profile.focusSessions.count) sesji łącznie")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Najdłuższa: \(formatDuration(vm.profile.focusSessions.map { $0.duration }.max() ?? 0))")
-                    .font(.caption).foregroundStyle(.secondary)
+            if vm.profile.focusSessions.isEmpty {
+                Text("Brak sesji. Po 10 minutach dostaniesz bonusowe XP.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             } else {
-                Text("Brak sesji — zacznij timer!").font(.subheadline).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    StatusChip(text: "\(vm.profile.focusSessions.count) sesji", icon: "checkmark.circle.fill", color: .teal)
+                    StatusChip(
+                        text: "Najdłuższa \(formatDuration(vm.profile.focusSessions.map { $0.duration }.max() ?? 0))",
+                        icon: "trophy.fill",
+                        color: .orange
+                    )
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-        .padding(.horizontal)
+        .appCard()
     }
 
     private func formatDuration(_ t: TimeInterval) -> String {

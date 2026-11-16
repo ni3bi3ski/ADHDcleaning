@@ -16,12 +16,15 @@ struct TasksTabView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     bannersSection
+                    progressSection
                     wheelSection
                     chaosModeSection
                     filterSection
                     taskListSection
                 }
+                .frame(maxWidth: 640)
                 .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Zadania")
@@ -33,8 +36,8 @@ struct TasksTabView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
-                            .foregroundColor(.blue)
                     }
+                    .accessibilityLabel("Dodaj zadanie")
                 }
             }
             .sheet(isPresented: $showAddTask) {
@@ -43,7 +46,28 @@ struct TasksTabView: View {
             .onAppear {
                 vm.checkDailyReset()
             }
+            .overlay {
+                if vm.showLevelUpBanner {
+                    ConfettiView()
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                }
+            }
+            .onChange(of: vm.showLevelUpBanner) { _, isShown in
+                if isShown { Haptics.success() }
+            }
         }
+    }
+
+    // MARK: - Dzisiejszy postęp
+    private var progressSection: some View {
+        let daily = vm.tasks.filter { $0.frequency == .daily }
+        return DailyProgressRing(
+            done: daily.filter { $0.isDone }.count,
+            total: daily.count,
+            accent: .accentColor
+        )
+        .padding(.horizontal)
     }
 
     // MARK: - Bannery
@@ -81,33 +105,46 @@ struct TasksTabView: View {
         }
     }
 
+    // MARK: - Karta akcji (Koło, Chaos)
+    private func actionRow(icon: String, color: Color, title: String,
+                           subtitle: String, showChevron: Bool) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(color.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .appCard(tint: color == .gray ? nil : color)
+    }
+
     // MARK: - Daily Wheel
     private var wheelSection: some View {
         VStack(spacing: 8) {
-            Button { vm.spinWheel() } label: {
-                HStack(spacing: 10) {
-                    Text("🎡").font(.title2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(vm.hasSpunWheelToday ? "Koło obrócone dziś ✓" : "Obróć Dzienne Koło!")
-                            .font(.subheadline).bold()
-                        Text(vm.hasSpunWheelToday ? "Wróć jutro po nagrodę" : "Losowa nagroda co 24h")
-                            .font(.caption2).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if !vm.hasSpunWheelToday {
-                        Image(systemName: "chevron.right")
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(vm.hasSpunWheelToday ? Color.gray.opacity(0.08) : Color.purple.opacity(0.10))
-                        .shadow(color: .purple.opacity(vm.hasSpunWheelToday ? 0 : 0.15), radius: 6, x: 0, y: 2)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(vm.hasSpunWheelToday ? Color.gray.opacity(0.15) : Color.purple.opacity(0.25), lineWidth: 1)
+            Button {
+                Haptics.tap()
+                vm.spinWheel()
+            } label: {
+                actionRow(
+                    icon: vm.hasSpunWheelToday ? "checkmark.circle.fill" : "sparkles",
+                    color: vm.hasSpunWheelToday ? .gray : .purple,
+                    title: vm.hasSpunWheelToday ? "Koło obrócone dziś" : "Obróć Dzienne Koło",
+                    subtitle: vm.hasSpunWheelToday ? "Wróć jutro po nagrodę" : "Losowa nagroda co 24 h",
+                    showChevron: !vm.hasSpunWheelToday
                 )
             }
             .buttonStyle(.plain)
@@ -143,27 +180,18 @@ struct TasksTabView: View {
 
     // MARK: - Chaos Mode
     private var chaosModeSection: some View {
-        Button { vm.toggleChaosMode() } label: {
-            HStack(spacing: 10) {
-                Text(vm.chaosModeActive ? "🔥" : "⚡").font(.title2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(vm.chaosModeActive ? "Chaos Mode aktywny!" : "Chaos Mode — szybkie zadania")
-                        .font(.subheadline).bold()
-                    Text(vm.chaosModeActive ? "4 mini-zadania dodane" : "Masz ADHD blokadę? Tap!")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: vm.chaosModeActive ? "xmark.circle.fill" : "bolt.circle.fill")
-                    .foregroundColor(vm.chaosModeActive ? .red : .orange)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(vm.chaosModeActive ? Color.red.opacity(0.08) : Color.orange.opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(vm.chaosModeActive ? Color.red.opacity(0.25) : Color.orange.opacity(0.2), lineWidth: 1)
+        Button {
+            Haptics.tap()
+            vm.toggleChaosMode()
+        } label: {
+            actionRow(
+                icon: vm.chaosModeActive ? "flame.fill" : "bolt.fill",
+                color: vm.chaosModeActive ? .red : .orange,
+                title: vm.chaosModeActive ? "Chaos Mode aktywny" : "Chaos Mode",
+                subtitle: vm.chaosModeActive
+                    ? "Dodano 4 mini-zadania. Dotknij, aby wyłączyć"
+                    : "Brak sił? Dodaj 4 bardzo małe zadania",
+                showChevron: false
             )
         }
         .buttonStyle(.plain)
@@ -196,7 +224,7 @@ struct TasksTabView: View {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 52))
                         .foregroundStyle(.green)
-                    Text("Wszystko zrobione! 🎉")
+                    Text("Wszystko zrobione!")
                         .font(.title3).bold()
                     Text("Brak zadań w tej kategorii")
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -206,7 +234,7 @@ struct TasksTabView: View {
                         Label("Dodaj zadanie", systemImage: "plus.circle.fill")
                             .font(.subheadline).bold()
                             .padding(.horizontal, 20).padding(.vertical, 10)
-                            .background(Capsule().fill(Color.blue))
+                            .background(Capsule().fill(Color.accentColor))
                             .foregroundColor(.white)
                     }
                     .buttonStyle(.plain)
@@ -297,7 +325,7 @@ struct TasksTabView: View {
                 Image(systemName: reward.icon)
                     .font(.title2).foregroundColor(.purple)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("🎉 Nagroda z koła!").font(.subheadline).bold()
+                    Text("Nagroda z koła!").font(.subheadline).bold()
                     Text(reward.rawValue).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -327,36 +355,26 @@ struct TasksTabView: View {
 
                     Section("Kategoria") {
                         Picker("Kategoria", selection: $category) {
-                            Text("🍴 Kuchnia").tag(TaskCategory.kitchen)
-                            Text("🚿 Łazienka").tag(TaskCategory.bathroom)
-                            Text("🛋 Salon").tag(TaskCategory.living)
-                            Text("🛏 Sypialnia").tag(TaskCategory.bedroom)
-                            Text("🏠 Ogólne").tag(TaskCategory.general)
-                            Text("❤️ Zdrowie").tag(TaskCategory.health)
-                            Text("🏃 Fitness").tag(TaskCategory.fitness)
-                            Text("🧠 Fokus").tag(TaskCategory.focus)
-                            Text("💰 Finanse").tag(TaskCategory.finance)
-                            Text("💬 Społeczne").tag(TaskCategory.social)
-                            Text("🧖 Dbanie o siebie").tag(TaskCategory.selfcare)
-                            Text("📚 Praca/Nauka").tag(TaskCategory.work)
-                            Text("➕ Własne").tag(TaskCategory.custom)
+                            ForEach(TaskCategory.allCases, id: \.self) { cat in
+                                Label(cat.rawValue, systemImage: cat.icon).tag(cat)
+                            }
                         }
                     }
 
                     Section("Trudność") {
                         Picker("Trudność", selection: $difficulty) {
-                            Text("😊 Łatwe").tag(TaskDifficulty.easy)
-                            Text("😤 Średnie").tag(TaskDifficulty.medium)
-                            Text("💀 Trudne").tag(TaskDifficulty.hard)
+                            ForEach(TaskDifficulty.allCases, id: \.self) { diff in
+                                Text("\(diff.icon) \(diff.rawValue)").tag(diff)
+                            }
                         }
                         .pickerStyle(.segmented)
                     }
 
                     Section("Częstotliwość") {
                         Picker("Częstotliwość", selection: $frequency) {
-                            Text("Dzienne").tag(TaskFrequency.daily)
-                            Text("Tygodniowe").tag(TaskFrequency.weekly)
-                            Text("Miesięczne").tag(TaskFrequency.monthly)
+                            ForEach(TaskFrequency.allCases, id: \.self) { freq in
+                                Text(freq.rawValue).tag(freq)
+                            }
                         }
                         .pickerStyle(.segmented)
                     }
