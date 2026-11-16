@@ -16,6 +16,7 @@ struct ProfileTabView: View {
                     challengeSection
                     achievementsPreview
                     shopButton
+                    oneTaskButton
                     moodSection
                     dangerZone
                 }
@@ -188,6 +189,31 @@ struct ProfileTabView: View {
             .shadow(color: .purple.opacity(0.1), radius: 6, x: 0, y: 2)
             .overlay(RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(Color.purple.opacity(0.2), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+    }
+
+    // MARK: - Tryb jednego zadania
+    private var oneTaskButton: some View {
+        NavigationLink {
+            OneTaskView(vm: vm)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "scope").font(.title3).foregroundColor(.teal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Jedno zadanie").font(.headline).bold().foregroundColor(.primary)
+                    Text("Tylko jedno zadanie naraz, bez rozpraszaczy")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding()
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground)))
+            .shadow(color: .teal.opacity(0.1), radius: 6, x: 0, y: 2)
+            .overlay(RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.teal.opacity(0.2), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .padding(.horizontal)
