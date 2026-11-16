@@ -11,15 +11,19 @@ struct ConfettiView: View {
         let spin: Double
     }
 
-    @State private var fall = false
-    private let pieces: [Piece] = (0..<60).map { _ in
-        Piece(x: CGFloat.random(in: 0...1),
-              size: CGFloat.random(in: 6...12),
-              delay: Double.random(in: 0...0.6),
-              duration: Double.random(in: 1.6...2.8),
-              color: [Color.red, .orange, .yellow, .green, .blue, .purple, .pink].randomElement()!,
-              spin: Double.random(in: 180...720))
+    private static func makePieces() -> [Piece] {
+        (0..<60).map { _ in
+            Piece(x: CGFloat.random(in: 0...1),
+                  size: CGFloat.random(in: 6...12),
+                  delay: Double.random(in: 0...0.6),
+                  duration: Double.random(in: 1.6...2.8),
+                  color: [Color.red, .orange, .yellow, .green, .blue, .purple, .pink].randomElement()!,
+                  spin: Double.random(in: 180...720))
+        }
     }
+
+    @State private var fall = false
+    @State private var pieces: [Piece] = ConfettiView.makePieces()
 
     var body: some View {
         GeometryReader { geo in
